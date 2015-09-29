@@ -8,8 +8,11 @@ Obbiettivi del gioco:
 - raggiungere un punteggio
   - creare molliche (poco interessante!!)
   - aumentare il numero di connessioni, quindi la % celle raggiungibili (punti) , ruotando le caselle/creando ponti 
+  - 
+Ripristinando i ghost gli obbiettivi cambiano, poiche' e' essenziale sopravvivere ai ghost!!  
+Occorre introdurre piu' di una vita, per accettare meglio gli errori!
 
-La chiave del gioco e' ruotare opportunamente le celle!!  Costruire ponti!
+La chiave del gioco e' ruotare opportunamente le celle!!  Costruire ponti!  Isolare i ghost!!
 
 > SALVARE LO STATO , per riprenderlo successivamente (o fare DEBUG) <<<<<<<< Salvare oggetti!!
 > Prevedere due utenti (da selezionare)
