@@ -150,6 +150,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
     private Boolean gameover=false;         //NOT_USED
     private Boolean player_on=false;    //influenza callcoloPercorso() -> disattiva le celle (attiva=<mossa>)!
     private int ghost_cont=0;
+    static private int immunita=0;  //flag immunita da ghost (per 2 mosse/rotazioni): contiene il conteggio_mosse
     //static javax.swing.JPanel G_Panel;
     
 
@@ -317,12 +318,13 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         copiaBordo(g2d,"LEFT");
         copiaBordo(g2d,"RIGHT");
         mappa();
-        //GhostPaint(g2d,"?");  //spostato in:  Timer->actionPerformed->surface.repaint()  -> ??
-        //g2d.setPaint(Color.black); //linea sul bordo sinistro
-        //g2d.drawLine(0,-vert_size_limit*u*3,0,+vert_size_limit*u*3);  //se x=-1 (invece di 0), la riga non si vede!
+        if (immunita!=0) immunita();
     }
     static private void mappa(){
-        
+        //TODO .. disegna una mappa mignon (u=0.2px)
+    }
+    static private void immunita(){
+        //TODO .. disegna un cerchio rosso trasparente attorno a current_pos (diametro 3-5 celle)
     }
     
     static private void copiaBordo(Graphics2D g2d,String side){  //side: LEFT o RiGHT
@@ -648,7 +650,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                 //ripristina il percoso minimo .. se non gia' attivo (dir:Ovest)!         
                 if (j!=3) {
                     //resetPercorsoG("0 0"); //cancellate seguendo il path a ritroso!! 
-                    Punto start=(new Punto(x,y)).vediLato(j);  //ritorna new (x,y)
+                    Punto start=(new Punto(x,y)).muoviDir(j);  //ritorna new (x,y)
                     mondo.get(x+" "+y).mollicaG=start.x+" "+start.y;
                     direzione=j;   //verra cambiato? BUG!!
                     x=start.x;
@@ -1112,9 +1114,10 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         //indica imprevisto/tesoro trovato !!
         if (mondo.get(new_cp.toString()).tesori > 0 && mondo.get(new_cp.toString()).tesori < 10) {
             mondo.get(new_cp.toString()).tesori += 10;
-            mondo.get(new_cp.toString()).nascondi = false;            
+            mondo.get(new_cp.toString()).nascondi = false; 
+            immunita=conteggio_mosse;
             String msg ="<html>";
-            msg = msg+" -> PRESO! (nuove indicazioni per altro obbiettivo o premio o imprevisto)";                    
+            msg = msg+" -> PRESA IMMUNITA da ghosts! (vale per le prossime 10 mosse)";                    
             mosse.setText(msg);
         } 
         
@@ -1126,6 +1129,8 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         previous_dir=dir;
         previous_pos= (Punto) current_pos.clone();  // NON e' molto utile <punto>.clone(), dato che sono solo due gli attributi (x,y)//
         gAvanza();
+        if (!new_cp.equals(previous_pos)) conteggio_mosse++; 
+        if (immunita!=0 && conteggio_mosse > immunita+10) immunita=0;
         return (new_cp);  //modifica: current_pos= Muovi("Nord");
     }
 
@@ -1609,7 +1614,6 @@ class Surface extends JPanel implements ActionListener,Runnable {
             g2d.fillRect((int)(u*2.5), (int)(u*2.5), u, u*2); 
             g2d.drawLine(u*2,(int)(u*4.5), u*4, (int)(u*4.5));
         }
-        if (rif_cella.perc_mossa == conteggio_mosse){
         if (rif_cella.mollicaB != null && rif_cella.player==1){              //NECESSITA resetPercorso();
         //if (rif_cella.perc_mossa == conteggio_mosse){   //NON NECESSITA resetPercorso(); //BUG presente!!
             g2d.setPaint(Color.blue);
@@ -1622,7 +1626,16 @@ class Surface extends JPanel implements ActionListener,Runnable {
             g2d.drawLine(0, u*2, u*2, 0); g2d.drawLine(0, u*4, u*4, 0); g2d.drawLine(0, u*6, u*6, 0);
             g2d.drawLine(u*2, u*6, u*6, u*2); g2d.drawLine(u*4, u*6, u*6, u*4);
         }        
+        
+        //alone giallo immunita        
+        int rx=Math.abs(current_pos.x-rif_cella.pos.x), ry=Math.abs(current_pos.y-rif_cella.pos.y);
+        if (immunita>0 && (rx<3 && ry<3) && !(rx==2 && ry==2) ){ 
+            //System.out.println("immunita:"+Math.abs(current_pos.x-rif_cella.pos.x));
+            g2d.setPaint(Color.yellow);
+            g2d.drawLine(0, u*4, u*2, u*6); g2d.drawLine(0, u*2, u*4, u*6); g2d.drawLine(0, 0, u*6, u*6);
+            g2d.drawLine(u*2, 0, u*6, u*4); g2d.drawLine(u*4, 0, u*6, u*2);                
         }
+
         g2d.setPaint(wallcolor);
         g2d.fillRect(0, 0, u, u);  g2d.fillRect(0, u*5, u, u);  g2d.fillRect(u*5, u*5, u, u);  g2d.fillRect(u*5, 0, u, u);
         if (rif_cella.lati[0]!=2) g2d.fillRect(0, 0, u*6, u);     // muro a Nord   
@@ -1738,11 +1751,11 @@ class Punto extends Point {
         return (this.x == x1 && this.y == y1);
     }   
 
-    public Punto vediLato(int dir) {
+    public Punto muoviDir(int dir) {
         String direzione = Integer.toString(dir);
-        return vediLato(direzione);
+        return muoviDir(direzione);
     }    
-    public Punto vediLato(String dir) {
+    public Punto muoviDir(String dir) {
         int dx=0,dy=0;
         switch (dir){
             case "0": case "Nord": dx=0;dy=-1; break;
