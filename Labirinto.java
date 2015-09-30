@@ -537,7 +537,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
     
     
     int percorso_minimo=9999;
-    int direzione;//=0;
+    int direzione=0;//=0;
     Boolean[] target_trovato={false,false,false,false};    
     int[] xconta={0,0,0,0};  //conta in ogni "direzione" per scegliere la via piu' breve!
     //
@@ -553,25 +553,29 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                 xconta[k]=0;
             }
             percorso_minimo=9999;
-        }  
+            //direzione iniziale, quindi nuova posizione//
+        }
+        
         if (target.equals(x+" "+y)) {
-            xconta[direzione]=i;
-            target_trovato[direzione]=true;
-            if (i<percorso_minimo) percorso_minimo=i;
-            trovato =1;
+            if (i<percorso_minimo) {
+                percorso_minimo=i;
+                target_trovato[direzione]=true;
+                xconta[direzione]=i;
+                trovato =1;
+            }
         }
         if  (target_trovato[direzione]) { //salvare la direzione dove e' stato trovato
-            System.out.println("targetPerc> TARGET TROVATO");
+            System.out.println("targetPerc> TARGET TROVATO - dir:"+direzione);
             return 1;
         } //x trovare 1 o piu' uscite!! 
-        mondo.get(x+" "+y).mollicaG="0 0"; //default (anche fine-ramo invece che null)
+
+        mondo.get(x+" "+y).mollicaG="END"; //default (anche fine-ramo invece che null)
         mondo.get(x+" "+y).perc_mossa=conteggio_mosse;
         mondo.get(x+" "+y).player = ((player_on)? 2 :1);
         if (Math.abs(y) > Math.abs(Labirinto.lato_estremo))  Labirinto.lato_estremo = y;
         //
         int m;
-        for (m=0; m<4 ; m++)
-            if (dir == 9 || (dir==m && i==0) )  //se dir<>9 solo una direzione!! 
+        for (m=0; m<4 ; m++)  //if (dir == 9 || (dir==m && i==0) )  //risolto sopra !! 
             if (m != entrata  && mondo.get(x+" "+y).lati[ m ] == 2) {  //via aperta (primo muro)
                 int n_entrata=0, inc_x, inc_y;
                 inc_x=inc_y=0;
@@ -609,42 +613,61 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                             System.out.println("calcola >passaggio_ponte x "+key);
 
                         }
+                        
+                        //se cella_esite > ostacolo_non_presente > cambio direz.liv.0 
+                        if (i==0) {
+                            direzione=m;  //viene chiamata 4 volte a livello (i==0)
+                            //resetPercorsoG("0 0");  //NON serve! mollica cancellata al return (se NON trovato target)
+                        }
+
                         if (mondo.get(key).mollicaG == null  ) {  //NO LOOP! -> NECESSARIO il resetPercorso()
                             mondo.get(x+" "+y).mollicaG = key;
-                            //mondo.get(x+" "+y).player = ((player_on)? 2 :1);   //gia' messo!
-                            //mondo.get(x+" "+y).perc_mossa = conteggio_mosse;
-                            if (i==0) {
-                                direzione=m;  //resettare percorso ??
-                                //resetPercorsoG("0 0");  //cancellare seguendo il path!!
-                            }
+                            //mondo.get(x+" "+y).player = ((player_on)? 2 :1);   //non usato
+                            //mondo.get(x+" "+y).perc_mossa = conteggio_mosse;   //se conteggio in ogni direzione
                             System.out.println("... "+(i+1)+" m="+m+" - "+(x+inc_x)+" "+(y+inc_y));
                             //verifica che non si superino in passi, un percorso minimo!! 
                             if (i < percorso_minimo-1) //non DEVONO esistere due percorsi minimi!!
                                 targetPercorso( i+1, x+inc_x,  y+inc_y ,  n_entrata,9);
                         }  else  { 
-                            //mondo.get(key).lati[ n_entrata ] = 1;  // come se ci fosse un muro  
+                            //mondo.get(key).lati[ n_entrata ] = 1;  // come se ci fosse un muro! NON VERO quando cambia dir-0!!  
                         }
                     }   
                 }
             }
-        repaint();
-        //se non trovato target ...e siamo tornati al livello zero!!
-        if (dir == 9 && i == 0 && m==4  && Labirinto.trovato == 0)     System.out.println("Non trovato target.  Estremo:"+lato_estremo);
+        //repaint();  <- NON era il posto giusto!!
+        //siamo tornati al livello zero (fine)!!
         //se trovato ..ripristino il percorso "mollicaG" con il minimo numero di passi!!
-        if (dir == 9 && i==0 && m==4 && trovato>0) {
-            int j=-2;
-            for (int o=0;o<4;o++) {
-                if (xconta[o]==percorso_minimo)   j=o;  //target_trovato NON serve!!
+        if (i == 0 && m==4)  {  //&& dir == 9  //non serve "dir" se (i==1)! 
+            if (Labirinto.trovato == 0) {
+                System.out.println("Non trovato target.  Estremo:"+lato_estremo);
+            } else {
+                int j=-2;
+                for (int o=0;o<4;o++) {
+                    if (xconta[o]==percorso_minimo)   j=o;  //target_trovato NON serve!!
+                }
+                //ripristina il percoso minimo .. se non gia' attivo (dir:Ovest)!         
+                if (j!=3) {
+                    //resetPercorsoG("0 0"); //cancellate seguendo il path a ritroso!! 
+                    Punto start=(new Punto(x,y)).vediLato(j);  //ritorna new (x,y)
+                    mondo.get(x+" "+y).mollicaG=start.x+" "+start.y;
+                    direzione=j;   //verra cambiato? BUG!!
+                    x=start.x;
+                    y=start.y;
+                    switch (entrata) { 
+                        case 0:entrata=1; case 1:entrata=0; case 2:entrata=3; case 3:entrata=2;
+                    }
+                    // NON serve ripristinare il percorso se viene salvato in un array!!
+                    targetPercorso( 1, x,  y , entrata, j);  //ripristino il percorso "j"
+
+                    System.out.println("targetPerc.> ripristino direzione:"+j+" da ("+x+" "+y+")");
+                }  
             }
-            //ripristina il percoso minimo .. se non gia' attivo (dir:Ovest)!         
-            if (j!=3) {
-                resetPercorsoG("0 0"); //cancellare seguendo il path!!
-                targetPercorso( 0, x,  y , 9, j);
-                
-                System.out.println("targetPerc.> rip.dir:"+j+" da ("+x+" "+y+")");
-            }  
+            repaint();
         }
         //molliche.setText("<html><hr>Molliche: "+conteggio_molliche+"<br>Fiorini: 100<hr>Punti: 900");
+        //TODO...CANCELLARE la mollicaG che non e' arrivata al target!!
+        if (!target_trovato[direzione]) mondo.get(x+" "+y).mollicaG=null;
+        
         return ((trovato>0)?1:0);
     }
     
@@ -1212,7 +1235,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                             current_pos = Muovi("Nord");
                             break;
 
-                         case KeyEvent.VK_S:
+                        case KeyEvent.VK_S:
                         case KeyEvent.VK_DOWN:
                             current_pos = Muovi("Sud");
                             break;
@@ -1715,14 +1738,18 @@ class Punto extends Point {
         return (this.x == x1 && this.y == y1);
     }   
 
-    public String vediLato(String dir) {
+    public Punto vediLato(int dir) {
+        String direzione = Integer.toString(dir);
+        return vediLato(direzione);
+    }    
+    public Punto vediLato(String dir) {
         int dx=0,dy=0;
         switch (dir){
-            case "Nord": dx=0;dy=-1; break;
-            case "Sud":  dx=0;dy=1; break;
-            case "Ovest":  dx=-1;dy=0; break;
-            case "Est":  dx=1;dy=0; break;
+            case "0": case "Nord": dx=0;dy=-1; break;
+            case "1": case "Sud":  dx=0;dy=1; break;
+            case "2": case "Ovest":  dx=-1;dy=0; break;
+            case "3": case "Est":  dx=1;dy=0; break;
         }
-        return (this.x+dx)+" "+(this.y+dy);
+        return new Punto((this.x+dx),(this.y+dy));
     }
 }
