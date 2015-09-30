@@ -497,7 +497,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         if (ghost_pos.equals(current_pos)) {
             System.out.println("Committed suicide!"); return;
         }
-        int tg= targetPercorso(0,ghost_pos.x,ghost_pos.y,9,9);
+        int tg= targetPercorso(0,ghost_pos.x,ghost_pos.y,9);
         String s=target_path[0];
         
         System.out.println("gAvanza Conteggio dir.: "+xconta[0]+" "+xconta[1]+" "+xconta[2]+" "+xconta[3]);
@@ -525,14 +525,18 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
             }
         }
         
-        if (s!=null && !s.equals("END")){
-            System.out.println("gAvanza new ghost_pos: "+s);
-            ghost_pos.x=Integer.parseInt(s.substring(0,s.indexOf(" ")));
-            ghost_pos.y=Integer.parseInt(s.substring(s.indexOf(" ")+1));
-            if (ghost_pos.equals(current_pos)) {
-                System.out.println("KILLED!");
+        if (s!=null && !s.equals("END") ){
+            int gx=Integer.parseInt(s.substring(0,s.indexOf(" ")));
+            int gy=Integer.parseInt(s.substring(s.indexOf(" ")+1));
+            int rx=Math.abs(current_pos.x-gx), ry=Math.abs(current_pos.y-gy);
+            if (immunita==0 || (rx>1 && ry>1) ) {       
+                System.out.println("gAvanza new ghost_pos: "+s);
+                ghost_pos.x=gx;
+                ghost_pos.y=gy;
+                if (ghost_pos.equals(current_pos) || ghost_pos.equals(previous_pos)) {
+                    System.out.println("KILLED!");
+                }
             }
-
         }    
 
     }
@@ -543,7 +547,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
     Boolean[] target_trovato={false,false,false,false};    
     int[] xconta={0,0,0,0};  //conta in ogni "direzione" per scegliere la via piu' breve!
     //
-    public int targetPercorso(int i,int x, int y , int entrata, int dir){
+    public int targetPercorso(int i,int x, int y , int entrata){
         //restituise il numero di celle contate!
         // soluzione ricorsiva
         if  (entrata == 9 && i ==0) {  // se la prima chiamata azzera il flag e conteggio
@@ -629,7 +633,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                             System.out.println("... "+(i+1)+" m="+m+" - "+(x+inc_x)+" "+(y+inc_y));
                             //verifica che non si superino in passi, un percorso minimo!! 
                             if (i < percorso_minimo-1) //non DEVONO esistere due percorsi minimi!!
-                                targetPercorso( i+1, x+inc_x,  y+inc_y ,  n_entrata,9);
+                                targetPercorso( i+1, x+inc_x,  y+inc_y ,  n_entrata);
                         }  else  { 
                             //mondo.get(key).lati[ n_entrata ] = 1;  // come se ci fosse un muro! NON VERO quando cambia dir-0!!  
                         }
@@ -659,7 +663,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                         case 0:entrata=1; case 1:entrata=0; case 2:entrata=3; case 3:entrata=2;
                     }
                     // NON serve ripristinare il percorso se viene salvato in un array!!
-                    targetPercorso( 1, x,  y , entrata, j);  //ripristino il percorso "j"
+                    targetPercorso( 1, x,  y , entrata);  //ripristino il percorso "j"
 
                     System.out.println("targetPerc.> ripristino direzione:"+j+" da ("+x+" "+y+")");
                 }  
@@ -1117,7 +1121,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
             mondo.get(new_cp.toString()).nascondi = false; 
             immunita=conteggio_mosse;
             String msg ="<html>";
-            msg = msg+" -> PRESA IMMUNITA da ghosts! (vale per le prossime 10 mosse)";                    
+            msg = msg+" -> PRESA IMMUNITA da ghosts! (vale per le prossime 20 mosse)";                    
             mosse.setText(msg);
         } 
         
@@ -1130,7 +1134,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         previous_pos= (Punto) current_pos.clone();  // NON e' molto utile <punto>.clone(), dato che sono solo due gli attributi (x,y)//
         gAvanza();
         if (!new_cp.equals(previous_pos)) conteggio_mosse++; 
-        if (immunita!=0 && conteggio_mosse > immunita+10) immunita=0;
+        if (immunita!=0 && conteggio_mosse > immunita+20) immunita=0;
         return (new_cp);  //modifica: current_pos= Muovi("Nord");
     }
 
@@ -1629,7 +1633,7 @@ class Surface extends JPanel implements ActionListener,Runnable {
         
         //alone giallo immunita        
         int rx=Math.abs(current_pos.x-rif_cella.pos.x), ry=Math.abs(current_pos.y-rif_cella.pos.y);
-        if (immunita>0 && (rx<3 && ry<3) && !(rx==2 && ry==2) ){ 
+        if (immunita>0 && (rx<2 && ry<2) ){ 
             //System.out.println("immunita:"+Math.abs(current_pos.x-rif_cella.pos.x));
             g2d.setPaint(Color.yellow);
             g2d.drawLine(0, u*4, u*2, u*6); g2d.drawLine(0, u*2, u*4, u*6); g2d.drawLine(0, 0, u*6, u*6);
