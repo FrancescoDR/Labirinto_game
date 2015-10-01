@@ -132,7 +132,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
     static int oriz_size = 11; // da -5 a +5  //Cilindro
     static int vert_size = 20;
         static int vert_size_limit = 40;
-    private String previous_dir;
+    private String previous_dir="NonSo";
     private Punto previous_pos=new Punto(0,0);
     static private Punto current_pos;
     private long currentTime;
@@ -502,22 +502,14 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         if (ghost_pos.equals(current_pos)) {
             System.out.println("Committed suicide!"); return;
         }
-        int tg= targetPercorso(0,ghost_pos.x,ghost_pos.y,9);
+        //salva il percorso minimo in target_path[]
+        int tg= targetPercorso(0,ghost_pos.x,ghost_pos.y,9);  //SERVE farlo ogni volta??
         String s=target_path[0];
         
         System.out.println("gAvanza Conteggio dir.: "+xconta[0]+" "+xconta[1]+" "+xconta[2]+" "+xconta[3]);
 
         if (tg >0) {
-            String key= ghost_pos.toString();
-            int i=0; target_path[i]=key;
-            while (key!=null && !key.equals(current_pos.toString())){
-                i++;
-                key=mondo.get(key).mollicaG;
-                target_path[i]=key;
-                
-                System.out.println("gAvanza >>> rec "+key);
-            }
-            target_path[i+1]="END";
+            //salvaTarget_path();  //gia' fatto al momento giusto!!
             s=target_path[1]; //BUG ?
         } else {
             if (s != null && !s.equals("END")){
@@ -535,7 +527,6 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
             int gy=Integer.parseInt(s.substring(s.indexOf(" ")+1));
             int rx=Math.abs(current_pos.x-gx), ry=Math.abs(current_pos.y-gy);
             if (immunita==0 || percorso_minimo>2){   // (rx>1 && ry>1) ){       
-                System.out.println("gAvanza new ghost_pos: "+s+" pm:"+percorso_minimo);
                 ghost_pos.x=gx;
                 ghost_pos.y=gy;
                 if (ghost_pos.equals(current_pos) || ghost_pos.equals(previous_pos)) {
@@ -545,7 +536,18 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         }    
 
     }
-    
+    public void salvaTarget_path(){
+            String key= ghost_pos.toString();
+            int i=0; target_path[i]=key;
+            while (key!=null && !key.equals(current_pos.toString())){
+                i++;
+                key=mondo.get(key).mollicaG;
+                target_path[i]=key;
+                
+                System.out.println("gAvanza >>> rec "+key);
+            }
+            target_path[i+1]="END";
+    }
     
     int percorso_minimo=9999;
     int direzione=0;//=0;
@@ -570,9 +572,11 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         if (target.equals(x+" "+y)) {
             if (i<percorso_minimo) {
                 percorso_minimo=i;
-                target_trovato[direzione]=true;
+                target_trovato[direzione]=true;  //attenzione!!
                 xconta[direzione]=i;
                 trovato =1;
+                //>> registra in target_path il percorso effettuato
+                salvaTarget_path();
             }
         }
         if  (target_trovato[direzione]) { //salvare la direzione dove e' stato trovato
@@ -628,17 +632,17 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                         //se cella_esite > ostacolo_non_presente > cambio direz.liv.0 
                         if (i==0) {
                             direzione=m;  //viene chiamata 4 volte a livello (i==0)
-                            //resetPercorsoG("0 0");  //NON serve! mollica cancellata al return (se NON trovato target)
+                            //resetPercorsoG("0 0");  //NON va bene!! invertire il senso delle molliche??
                         }
 
                         if (mondo.get(key).mollicaG == null  ) {  //NO LOOP! -> NECESSARIO il resetPercorso()
                             mondo.get(x+" "+y).mollicaG = key;
                             //mondo.get(x+" "+y).player = ((player_on)? 2 :1);   //non usato
-                            //mondo.get(x+" "+y).perc_mossa = conteggio_mosse;   //se conteggio in ogni direzione
                             System.out.println("... "+(i+1)+" m="+m+" - "+(x+inc_x)+" "+(y+inc_y));
                             //verifica che non si superino in passi, un percorso minimo!! 
                             if (i < percorso_minimo-1) //non DEVONO esistere due percorsi minimi!!
                                 targetPercorso( i+1, x+inc_x,  y+inc_y ,  n_entrata);
+                                mondo.get(x+" "+y).mollicaG=null;  //Non impesce alle mollice di ostacolarsi!!
                         }  else  { 
                             //mondo.get(key).lati[ n_entrata ] = 1;  // come se ci fosse un muro! NON VERO quando cambia dir-0!!  
                         }
@@ -651,7 +655,12 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         if (i == 0 && m==4)  {  //&& dir == 9  //non serve "dir" se (i==1)! 
             if (Labirinto.trovato == 0) {
                 System.out.println("Non trovato target.  Estremo:"+lato_estremo);
-            } else {
+            }
+            /*
+            //  invece di richiamare targetPercorso(1,...)
+            //  .. salvato in un array!! target_path[]
+            //  .. ??registrare il percorso inverso da currrent_pos a gost_pos??
+            else {
                 int j=-2;
                 for (int o=0;o<4;o++) {
                     if (xconta[o]==percorso_minimo)   j=o;  //target_trovato NON serve!!
@@ -671,17 +680,20 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                     switch (entrata) { 
                         case 0:entrata=1; case 1:entrata=0; case 2:entrata=3; case 3:entrata=2;
                     }
-                    // NON serve ripristinare il percorso se viene salvato in un array!!
+                    
                     targetPercorso( 1, x,  y , entrata);  //ripristino il percorso "j"
-
-                    System.out.println("targetPerc.> ripristino direzione:"+j+" da ("+x+" "+y+")");
+                    
+                    System.out.println("targetPerc.> ripristino direzione:"+j+" pos1=("+x+" "+y+")");
                 }  
             }
+            */
             repaint();
         }
         //molliche.setText("<html><hr>Molliche: "+conteggio_molliche+"<br>Fiorini: 100<hr>Punti: 900");
         //TODO...CANCELLARE la mollicaG che non e' arrivata al target!!
-        if (!target_trovato[direzione]) mondo.get(x+" "+y).mollicaG=null;
+        /*  quanto sotto non ha senso!! */
+        //if (!target_trovato[direzione]) mondo.get(x+" "+y).mollicaG=null;
+        //else System.out.println("tgPerc.> path trovato dir:"+direzione+" cella("+x+" "+y+")");
         
         return ((trovato>0)?1:0);
     }
@@ -1141,9 +1153,16 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         }
         previous_dir=dir;
         previous_pos= (Punto) current_pos.clone();  // NON e' molto utile <punto>.clone(), dato che sono solo due gli attributi (x,y)//
-        gAvanza();
-        if (!new_cp.equals(previous_pos)) conteggio_mosse++; 
+        /* avanza ghost */
+        if (ghost_pos.equals(new_cp)) {
+            String msg ="<html>";
+            msg = msg+" -> Committed suicide!  ..nuova vita";                    
+            mosse.setText(msg);
+            System.out.println("Committed suicide!");
+        } else gAvanza();
         if (immunita!=0 && conteggio_mosse > immunita+20) immunita=0;
+        
+        if (!new_cp.equals(previous_pos)) conteggio_mosse++; 
         return (new_cp);  //modifica: current_pos= Muovi("Nord");
     }
 
@@ -1599,7 +1618,7 @@ class Surface extends JPanel implements ActionListener,Runnable {
             g2d.fillRect(0, 0, u*6, u*6); //background 
         }
         
-        if (rif_cella.mollicaG!=null){ 
+        if (rif_cella.mollicaG!=null && rif_cella.mollicaG!="END"){ 
             g2d.setPaint(Color.WHITE);
             g2d.fillRect(0, 0, u*6, u*6); //background 
         }
@@ -1640,14 +1659,16 @@ class Surface extends JPanel implements ActionListener,Runnable {
             g2d.drawLine(u*2, u*6, u*6, u*2); g2d.drawLine(u*4, u*6, u*6, u*4);
         }        
         
-        //alone immunita        
+        //alone immunita       
         int rx=Math.abs(current_pos.x-rif_cella.pos.x), ry=Math.abs(current_pos.y-rif_cella.pos.y);
-        if (immunita>0 && (rx<2 && ry<2) ){ 
+        if (immunita>0 && (rx<2 && ry<2) && rif_cella.mollicaG!=null ){ 
             //System.out.println("immunita:"+Math.abs(current_pos.x-rif_cella.pos.x));
-            g2d.setPaint(Color.cyan);  //yellow
+            g2d.setPaint(Color.red);  //yellow
             g2d.drawLine(0, u*4, u*2, u*6); g2d.drawLine(0, u*2, u*4, u*6); g2d.drawLine(0, 0, u*6, u*6);
             g2d.drawLine(u*2, 0, u*6, u*4); g2d.drawLine(u*4, 0, u*6, u*2); 
         }
+        
+        
 
         g2d.setPaint(wallcolor);
         g2d.fillRect(0, 0, u, u);  g2d.fillRect(0, u*5, u, u);  g2d.fillRect(u*5, u*5, u, u);  g2d.fillRect(u*5, 0, u, u);
