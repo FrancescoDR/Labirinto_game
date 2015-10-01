@@ -134,7 +134,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         static int vert_size_limit = 40;
     private String previous_dir;
     private Punto previous_pos=new Punto(0,0);
-    private Punto current_pos;
+    static private Punto current_pos;
     private long currentTime;
     
     private final int DELAY = 2000;         //NOT_USED
@@ -317,14 +317,19 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         Graphics2D g2d = (Graphics2D) g; 
         copiaBordo(g2d,"LEFT");
         copiaBordo(g2d,"RIGHT");
-        mappa();
-        if (immunita!=0) immunita();
+        //mappa();
+        //if (immunita!=0) immunita(g2d);
     }
     static private void mappa(){
         //TODO .. disegna una mappa mignon (u=0.2px)
     }
-    static private void immunita(){
-        //TODO .. disegna un cerchio rosso trasparente attorno a current_pos (diametro 3-5 celle)
+    static private void immunita(Graphics2D g2d){
+        //TODO .. disegna un cerchio rosso trasparente attorno a current_pos (diametro 3-5 celle)  
+        //viene disegnata sotto le celle .... aggiungere pannallo SE necessario!
+        g2d.setPaint(Color.lightGray);
+        int xoff = centro_r.x+current_pos.x*u*6;
+        int yoff = centro_r.y+current_pos.y*u*6;
+        g2d.drawOval(xoff, yoff, u*6*3, u*6*3);
     }
     
     static private void copiaBordo(Graphics2D g2d,String side){  //side: LEFT o RiGHT
@@ -529,8 +534,8 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
             int gx=Integer.parseInt(s.substring(0,s.indexOf(" ")));
             int gy=Integer.parseInt(s.substring(s.indexOf(" ")+1));
             int rx=Math.abs(current_pos.x-gx), ry=Math.abs(current_pos.y-gy);
-            if (immunita==0 || (rx>1 && ry>1) ) {       
-                System.out.println("gAvanza new ghost_pos: "+s);
+            if (immunita==0 || percorso_minimo>2){   // (rx>1 && ry>1) ){       
+                System.out.println("gAvanza new ghost_pos: "+s+" pm:"+percorso_minimo);
                 ghost_pos.x=gx;
                 ghost_pos.y=gy;
                 if (ghost_pos.equals(current_pos) || ghost_pos.equals(previous_pos)) {
@@ -655,6 +660,10 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                 if (j!=3) {
                     //resetPercorsoG("0 0"); //cancellate seguendo il path a ritroso!! 
                     Punto start=(new Punto(x,y)).muoviDir(j);  //ritorna new (x,y)
+                    // salta ponte (se nella dir giusta)
+                    if (mondo.get(start.toString()).pass_ponte && mondo.get(start.toString()).lati[j]!=2)  { 
+                        start.muoviDir(j);
+                    }
                     mondo.get(x+" "+y).mollicaG=start.x+" "+start.y;
                     direzione=j;   //verra cambiato? BUG!!
                     x=start.x;
@@ -1568,7 +1577,7 @@ class Surface extends JPanel implements ActionListener,Runnable {
                 g2d.setComposite(alcom);
                 g2d.fillRect(50 * i, 20, 40, 40);
             */ //</editor-fold>
-            g2d.setPaint(Color.gray);  //g2d.setPaint(Color.yellow);
+            g2d.setPaint(Color.gray);  
             g2d.fillRect(0, 0, u*6, u*6);
             g2d.rotate((rif_cella.rotate.equals("LEFT") ? -Math.PI/4 : Math.PI/4) ,u*3, u*3); //dovrebbe fare translate(u*4)+rotate(45°) assieme.
             //threadMessage("PASSA DI QUI! - rotate");
@@ -1631,13 +1640,13 @@ class Surface extends JPanel implements ActionListener,Runnable {
             g2d.drawLine(u*2, u*6, u*6, u*2); g2d.drawLine(u*4, u*6, u*6, u*4);
         }        
         
-        //alone giallo immunita        
+        //alone immunita        
         int rx=Math.abs(current_pos.x-rif_cella.pos.x), ry=Math.abs(current_pos.y-rif_cella.pos.y);
         if (immunita>0 && (rx<2 && ry<2) ){ 
             //System.out.println("immunita:"+Math.abs(current_pos.x-rif_cella.pos.x));
-            g2d.setPaint(Color.yellow);
+            g2d.setPaint(Color.cyan);  //yellow
             g2d.drawLine(0, u*4, u*2, u*6); g2d.drawLine(0, u*2, u*4, u*6); g2d.drawLine(0, 0, u*6, u*6);
-            g2d.drawLine(u*2, 0, u*6, u*4); g2d.drawLine(u*4, 0, u*6, u*2);                
+            g2d.drawLine(u*2, 0, u*6, u*4); g2d.drawLine(u*4, 0, u*6, u*2); 
         }
 
         g2d.setPaint(wallcolor);
@@ -1755,6 +1764,7 @@ class Punto extends Point {
         return (this.x == x1 && this.y == y1);
     }   
 
+    
     public Punto muoviDir(int dir) {
         String direzione = Integer.toString(dir);
         return muoviDir(direzione);
@@ -1767,6 +1777,25 @@ class Punto extends Point {
             case "2": case "Ovest":  dx=-1;dy=0; break;
             case "3": case "Est":  dx=1;dy=0; break;
         }
+        x += dx;
+        y += dy;
+        return this;
+    }
+    
+    // ritorna il punto senza modificare x e y)
+    public Punto vediDir(int dir) {
+        String direzione = Integer.toString(dir);
+        return muoviDir(direzione);
+    }    
+    public Punto vediDir(String dir) {
+        int dx=0,dy=0;
+        switch (dir){
+            case "0": case "Nord": dx=0;dy=-1; break;
+            case "1": case "Sud":  dx=0;dy=1; break;
+            case "2": case "Ovest":  dx=-1;dy=0; break;
+            case "3": case "Est":  dx=1;dy=0; break;
+        }
         return new Punto((this.x+dx),(this.y+dy));
     }
+    
 }
