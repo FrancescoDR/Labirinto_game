@@ -18,6 +18,9 @@ La chiave del gioco e' ruotare opportunamente le celle!!  Costruire ponti!
 > possibilita' di cosrtuire muri (lato[x]=0; //muro invalicabile)  , 1:muro normale , 2:libero
 > creare un passaggio-ponte costa "10 fiorini"
 
+> modificare il CalcoloPercorso() in modo che registri la dimensione del ramo (in ogni cella)  (??)
+> https://docs.oracle.com/javase/tutorial/uiswing/events/mousewheellistener.html  (analogo al trascinamento)
+
 
 > Diventa un solitario se va avanti finche la fortuna lo permette, concentrarsi sulle abilita'
   - lasciare una traccia (molliche) e contare le caselle percorse e raggiungibili 
@@ -45,8 +48,36 @@ IMPRESSIONI:
   vedi: http://lagrandebiblioteca.com/tempo-libero-e-sport/algoritmo-maze-generazione.php
         https://it.wikipedia.org/wiki/Spazio_semplicemente_connesso
        (Bin-Tree): http://www.java2s.com/Code/Java/Collections-Data-Structure/BinaryTree.htm
-   
+
+  confrontare con: http://zetcode.com/gfx/java2d/tetris/
+
 */// </editor-fold>
+
+// simple image: http://forum.html.it/forum/showthread/t-1233757.html        
+// From:  https://docs.oracle.com/javase/tutorial/2d/images/index.html   (approfondire)
+// <editor-fold defaultstate="collapsed" desc="* Create an ARGB BufferedImage *">                          
+/* Create an ARGB BufferedImage *
+BufferedImage img = ImageIO.read(imageSrc);
+int w = img.getWidth(null);
+int h = img.getHeight(null);
+BufferedImage bi = new
+    BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+Graphics g = bi.getGraphics();
+g.drawImage(img, 0, 0, null);
+
+/*
+ * Create a rescale filter op that makes the image
+ * 50% opaque.
+ *
+float[] scales = { 1f, 1f, 1f, 0.5f };
+float[] offsets = new float[4];
+RescaleOp rop = new RescaleOp(scales, offsets, null);
+
+/* Draw the image, applying the filter *
+g2d.drawImage(bi, rop, 0, 0);
+
+*/ // </editor-fold>
+
 
 import java.awt.Color;
 import java.awt.Graphics;
@@ -59,6 +90,7 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -88,32 +120,37 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
     static Punto centro_r = new Punto(158-u*2,100);
     static int conteggio_mosse = 0; //conteggio mosse totali
     static int conteggio_molliche = 0; //conteggio molliche consecutive
+    static int conteggio_mollicheB = 0; //buffer necessario
     static Boolean stepBack=false;
     static Boolean freeMove = false;
     static int trovato=0; //numero percorsi con uscita trovati
     static int lato_estremo=0; //lato estremo sul percorso fatto  //NOT_USED
-    //static String target="0 0";
+    static String target="0 0";
+    static String[] target_path=new String[400];
     static Boolean toggle_nascondi=true;
     static Boolean toggle_calcola=true;
     static int oriz_size = 11; // da -5 a +5  //Cilindro
     static int vert_size = 20;
         static int vert_size_limit = 40;
-    private String previous_dir;
+    private String previous_dir="NonSo";
     private Punto previous_pos=new Punto(0,0);
-    private Punto current_pos;
+    static private Punto current_pos;
     private long currentTime;
     
     private final int DELAY = 2000;         //NOT_USED
     private int DELAY_step=1;  //da 1 a 10  //NOT_USED
     private int rubaMollica_step=10;        //NOT_USED
     private int NullaAvanza_step=4;         //NOT_USED
-    private int hiderow_num=-vert_size/2;  //prima riga da disattivare  //NOT_USED
+    private int hiderow_num=-vert_size_limit;  //NOT_USED
     private int hideinc=1;                  //NOT_USED
     private Timer timer;                    //NOT_USED
-    static private Punto ghost_pos= new Punto(-oriz_size/2,-vert_size/2);
-    static private int ghost_6step=0;          
+    static private Punto ghost_pos= new Punto(3,1); //new Punto(-oriz_size/2,-vert_size/2+2);
+    static private int ghost_6step=0;       //NOT_USED   
     static int dx=0, dy=0;
     private Boolean gameover=false;         //NOT_USED
+    private Boolean player_on=false;    //influenza callcoloPercorso() -> disattiva le celle (attiva=<mossa>)!
+    private int ghost_cont=0;
+    static private int immunita=0;  //flag immunita da ghost (per 2 mosse/rotazioni): contiene il conteggio_mosse
     //static javax.swing.JPanel G_Panel;
     
 
@@ -153,15 +190,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         semplifica(11,new Punto(9,9)); //definisce le celle con Imprevisti (all)
         Labirinto.trovato=0; //resetPercorso("0 0");
         calcoloPercorso(0,current_pos.x, current_pos.y , 9);  //calcola le celle raggiungibili (tratteggiate).
-        /*
-        //valori iniziali per dx,dy (incremento ghost_pos)   
-        while ((dx!=0 && dy!=0) || dx+dy==0){  //direzione possibile: oriz. oppure vert.
-            //ghost_dir = (int) ((Math.random()*4)-0.1);  //valori da 0 a 3 -> (Nord Sud Ovest Est)
-            dx=(int) ((Math.random()*3)-0.1)-1;  //intervallo random: -1 +1
-            dy=(int) ((Math.random()*3)-0.1)-1;
-        }
-        */
-        
+                
     }
     
     //al momento non ci sono task x il timer
@@ -240,17 +269,16 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         }
     }
     */// </editor-fold>
+        
     
-    //disattiva le celle partendo da sopra (se non gia' raggiungibili da chi gioca)
-    private void   GhostAvanza(){  //usa flag: NullaAvanza_step
-        if (NullaAvanza_step != 0 && DELAY_step%NullaAvanza_step == 0) {  //verifica se il suo turno
-            Labirinto.trovato=0; //resetPercorso("0 0");
-            calcoloPercorso(0,ghost_pos.x, ghost_pos.y , 9);  //calcola le celle raggiungibili (tratteggiate in red)
-            //TODO.. cerca-cella-da-girare()!!
-            System.out.println("GhostAvanza: "+ghost_pos);
-
-            //if (...) gameover=true;  //-FINE-
-        }
+    private void gira(int m, int x, int y){
+        //rotazione oraria dei lati 
+        int temp;
+        temp=mondo.get(x+" "+y).lati[0];
+        mondo.get(x+" "+y).lati[0]=mondo.get(x+" "+y).lati[2];
+        mondo.get(x+" "+y).lati[2]=mondo.get(x+" "+y).lati[1];
+        mondo.get(x+" "+y).lati[1]=mondo.get(x+" "+y).lati[3];
+        mondo.get(x+" "+y).lati[3]=temp;
     }
     
     static private Punto muovi_ghost(int gx,int gy){
@@ -289,9 +317,19 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         Graphics2D g2d = (Graphics2D) g; 
         copiaBordo(g2d,"LEFT");
         copiaBordo(g2d,"RIGHT");
-        //GhostPaint(g2d,"?");  //spostato in:  Timer->actionPerformed->surface.repaint()  -> ??
-        //g2d.setPaint(Color.black); //linea sul bordo sinistro
-        //g2d.drawLine(0,-vert_size_limit*u*3,0,+vert_size_limit*u*3);  //se x=-1 (invece di 0), la riga non si vede!
+        //mappa();
+        //if (immunita!=0) immunita(g2d);
+    }
+    static private void mappa(){
+        //TODO .. disegna una mappa mignon (u=0.2px)
+    }
+    static private void immunita(Graphics2D g2d){
+        //TODO .. disegna un cerchio rosso trasparente attorno a current_pos (diametro 3-5 celle)  
+        //viene disegnata sotto le celle .... aggiungere pannallo SE necessario!
+        g2d.setPaint(Color.lightGray);
+        int xoff = centro_r.x+current_pos.x*u*6;
+        int yoff = centro_r.y+current_pos.y*u*6;
+        g2d.drawOval(xoff, yoff, u*6*3, u*6*3);
     }
     
     static private void copiaBordo(Graphics2D g2d,String side){  //side: LEFT o RiGHT
@@ -356,7 +394,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
     static private void GhostPaint(Graphics2D g2d,String var1){  
         // disegna il fantasmino!!
             int x=u*2,y=u*2;
-            int x_off=centro_r.x +ghost_pos.x*u*6;// +u;
+            int x_off=centro_r.x +ghost_pos.x*u*6;
             int y_off=centro_r.y +ghost_pos.y*u*6;
             if (dx ==0) x = u*2;
             if (dx < 0) x = (u*2)+(6-ghost_6step)*u;
@@ -373,18 +411,28 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
 */
 
     
-    public void calcoloPercorso(int i,int x, int y , int entrata){
+    public int calcoloPercorso(int i,int x, int y , int entrata){
+        //restituise il numero di celle contate!
         // soluzione ricorsiva
-        if  (entrata == 9) Labirinto.trovato = 0;  // se la prima chiamata azzera il flag 
-        if  (Labirinto.trovato > 7) return; //x trovare 1 o piu' uscite!! 
+        if  (entrata == 9) {  // se la prima chiamata azzera il flag e conteggio
+            Labirinto.trovato = 0;
+            conteggio_mollicheB = 0;
+        }  
+        if  (Labirinto.trovato > 7) return conteggio_mollicheB; //x trovare 1 o piu' uscite!! 
         if (!mondo.containsKey(x+" "+y) ) {  Labirinto.trovato++;  //percorso trovato
             System.out.println("Uscita: "+x+" "+y);
             
-            return;  
+            return conteggio_mollicheB;  
         }
+        conteggio_mollicheB ++;
         mondo.get(x+" "+y).mollicaB="0 0"; //default (anche fine-ramo invece che null)
+        mondo.get(x+" "+y).perc_mossa=conteggio_mosse;
+        mondo.get(x+" "+y).player = ((player_on)? 2 :1);
         if (Math.abs(y) > Math.abs(Labirinto.lato_estremo))  Labirinto.lato_estremo = y;
-        for (int m=0; m<4; m++)
+        //
+        int m,direzione=0;
+        int[] conta={0,0,0,0};  //conta in ogni "direzione" per scegliere la via piu' breve!
+        for ( m=0; m<4; m++)
             if (m != entrata  && mondo.get(x+" "+y).lati[ m ] == 2) {  //via aperta (primo muro)
                 int n_entrata=0, inc_x, inc_y;
                 inc_x=inc_y=0;
@@ -412,7 +460,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
 
                 //System.out.println("calcola ("+i+", "+x+", "+y+", "+entrata+")");
                 
-                if (!mondo.containsKey(key))  calcoloPercorso( i+1, x+inc_x,  y+inc_y ,  n_entrata);
+                if (!mondo.containsKey(key))  calcoloPercorso( i+1, x+inc_x,  y+inc_y ,  n_entrata);  //FINE
                 else
                 if ( mondo.get(key).lati[ n_entrata ] == 2  || (mondo.get(key).pass_ponte && !change_side))  {  //via aperta (secondo muro) oppure pass_ponte
                     if (mondo.get(key).pass_ponte )  { //salta ponte
@@ -423,26 +471,252 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                         System.out.println("calcola >passaggio_ponte x "+key);
                         
                     }
-                    if ( mondo.get(key).mollicaB == null) {  //mai passato di qui!
+                    if (mondo.get(key).mollicaB == null  ) {  //NO LOOP! -> NECESSARIO il resetPercorso()
                         mondo.get(x+" "+y).mollicaB = key;
+                        //mondo.get(x+" "+y).player = ((player_on)? 2 :1);   //gia' messo!
+                        //mondo.get(x+" "+y).perc_mossa = conteggio_mosse;
+                        if (i==0) direzione=m;
+                        conta[direzione]++;
                         calcoloPercorso( i+1, x+inc_x,  y+inc_y ,  n_entrata);
-                    } else {
-                        //mondo.get(key).lati[ n_entrata ] = 1;  // come se ci fosse un muro
-                    }
+                    } // else  mondo.get(key).lati[ n_entrata ] = 1;  // come se ci fosse un muro              
+                    
                 }
             }
         repaint();
-        //if (m == 4  && i == 0)     System.out.println("Non trovata uscita");  //variabile "m" non esiste piu'!!
-        if (i == 0 && Labirinto.trovato == 0)     System.out.println("Non trovata uscita.  Estremo:"+lato_estremo);
-        molliche.setText("<html><hr>Molliche: "+conteggio_molliche+"<br>Fiorini: 100<hr>Punti: 900");
+        if (i == 0 && m==4 && Labirinto.trovato == 0)     System.out.println("Non trovata uscita.  Estremo:"+lato_estremo);
+        //molliche.setText("<html><hr>Molliche: "+conteggio_molliche+"<br>Fiorini: 100<hr>Punti: 900");
+        return conteggio_mollicheB;
     }
     
-    public void resetPercorso(String key){  //cancella il percorso calcolato in precedenza (mollicaB)// key="x y"
-        for (String k : mondo.keySet()) {
-            if (mondo.get(k).mollicaB != null) mondo.get(k).mollicaB=null;
+    int b=0;
+    public void pippo(int a){
+        if (a==4) {b=a; return;}
+        a++;
+        pippo(a);
+        System.out.println("value di a:"+b);
+    }
+    
+    
+    
+    public void gAvanza() {
+        if (ghost_pos.equals(current_pos)) {
+            System.out.println("Committed suicide!"); return;
         }
+        //salva il percorso minimo in target_path[]
+        if (!target.equals(current_pos.toString()))  System.out.println("gAvanza>  RICALCOLO NECESSARIO");
+        int tg= targetPercorso(0,ghost_pos.x,ghost_pos.y,9);  //SERVE farlo ogni volta??
+        String s=target_path[0];
+        
+        System.out.println("gAvanza Conteggio dir.: "+xconta[0]+" "+xconta[1]+" "+xconta[2]+" "+xconta[3]);
+
+        if (tg >0) {
+            //salvaTarget_path();  //gia' fatto al momento giusto!!
+            s=target_path[1]; //BUG ?
+        } else {
+            if (s != null && !s.equals("END")){
+                int i;
+                for ( i=0; !s.equals(ghost_pos.toString()) ;i++){
+                    s=target_path[i];
+                System.out.println("gAvanza >>read: "+i+" "+s);
+                }
+                s=target_path[i+1];
+            }
+        }
+        
+        if (s!=null && !s.equals("END") ){
+            int gx=Integer.parseInt(s.substring(0,s.indexOf(" ")));
+            int gy=Integer.parseInt(s.substring(s.indexOf(" ")+1));
+            int rx=Math.abs(current_pos.x-gx), ry=Math.abs(current_pos.y-gy);
+            if (immunita==0 || percorso_minimo>2){   // (rx>1 && ry>1) ){       
+                ghost_pos.x=gx;
+                ghost_pos.y=gy;
+                if (ghost_pos.equals(current_pos) || ghost_pos.equals(previous_pos)) {
+                    System.out.println("KILLED!");
+                }
+            }
+        }    
+
+    }
+    public void salvaTarget_path(){
+            String key= ghost_pos.toString();
+            int i=0; target_path[i]=key;
+            while (key!=null && !key.equals(current_pos.toString())){
+                i++;
+                key=mondo.get(key).mollicaG;
+                target_path[i]=key;
+                
+                System.out.println("gAvanza >>> rec "+key);
+            }
+            target_path[i+1]="END";
+    }
+    
+    int percorso_minimo=9999;
+    int direzione=0;//=0;
+    Boolean[] target_trovato={false,false,false,false};    
+    int[] xconta={0,0,0,0};  //conta in ogni "direzione" per scegliere la via piu' breve!
+    //
+    public int targetPercorso(int i,int x, int y , int entrata){
+        //restituise il numero di celle contate!
+        // soluzione ricorsiva
+        if  (entrata == 9 && i ==0) {  // se la prima chiamata azzera il flag e conteggio
+            Labirinto.trovato = 0;  
+            resetPercorsoG("0 0");  //lo esegue anche nei cambi di direzione?? NO!!
+            target=current_pos.x+" "+current_pos.y;
+            for (int k=0; k<4;k++) {
+                target_trovato[k]=false;
+                xconta[k]=0;
+            }
+            percorso_minimo=9999;
+            //direzione iniziale, quindi nuova posizione//
+        }
+        
+        if (target.equals(x+" "+y)) {
+            if (i<percorso_minimo) {
+                percorso_minimo=i;
+                target_trovato[direzione]=true;  //attenzione!!
+                xconta[direzione]=i;
+                trovato =1;
+                //>> registra in target_path il percorso effettuato
+                salvaTarget_path();
+            }
+        }
+        if  (target_trovato[direzione]) { //salvare la direzione dove e' stato trovato
+            System.out.println("targetPerc> TARGET TROVATO - dir:"+direzione);
+            return 1;
+        } //x trovare 1 o piu' uscite!! 
+
+        mondo.get(x+" "+y).mollicaG="END"; //default (anche fine-ramo invece che null)
+        mondo.get(x+" "+y).perc_mossa=conteggio_mosse;
+        mondo.get(x+" "+y).player = ((player_on)? 2 :1);
+        if (Math.abs(y) > Math.abs(Labirinto.lato_estremo))  Labirinto.lato_estremo = y;
+        //
+        int m;
+        for (m=0; m<4 ; m++)  //if (dir == 9 || (dir==m && i==0) )  //risolto sopra !! 
+            if (m != entrata  && mondo.get(x+" "+y).lati[ m ] == 2) {  //via aperta (primo muro)
+                int n_entrata=0, inc_x, inc_y;
+                inc_x=inc_y=0;
+                switch (m){
+                    case 0:  inc_y= -1;  n_entrata=1;
+                        break;
+                    case 1:  inc_y= +1;  n_entrata=0;
+                        break;
+                    case 2:  inc_x= -1;  n_entrata=3;
+                        break;
+                    case 3:  inc_x= +1;  n_entrata=2;
+                        break;
+                    default:   break;    
+                }
+                //verifica secondo muro se esiste//
+                String key=(x+inc_x)+" "+(y+inc_y);
+                //
+                //il labirinto e' un cilindro SULL ASSE X
+                Boolean change_side = false;
+                if ((x+inc_x) > oriz_size/2 || (x+inc_x) < -oriz_size/2) {  
+                    change_side = true;
+                    inc_x = -2*x; // cambiare lato 
+                    key=(x+inc_x)+" "+(y+inc_y);
+                }        
+
+                //System.out.println(">>calcola ("+i+", "+x+", "+y+", "+entrata+")");
+                
+                if ( mondo.containsKey(key)) {
+                    if ( mondo.get(key).lati[ n_entrata ] == 2  || (mondo.get(key).ponte && !change_side))  {  //via aperta (secondo muro) oppure pass_ponte
+                        if (mondo.get(key).pass_ponte )  { //salta ponte
+                            inc_x = inc_x*2;
+                            inc_y = inc_y*2;
+                            key=(x+inc_x)+" "+(y+inc_y);  // NON ESISTONO ponti a cavallo dei bordi: inc_x =[1|0] 
+
+                            System.out.println("calcola >passaggio_ponte x "+key);
+
+                        }
+                        
+                        //se cella_esite > ostacolo_non_presente > cambio direz.liv.0 
+                        if (i==0) {
+                            direzione=m;  //viene chiamata 4 volte a livello (i==0)
+                            //resetPercorsoG("0 0");  //NON va bene!! invertire il senso delle molliche??
+                        }
+
+                        if (mondo.get(key).mollicaG == null  ) {  //NO LOOP! -> NECESSARIO il resetPercorso()
+                            mondo.get(x+" "+y).mollicaG = key;
+                            //mondo.get(x+" "+y).player = ((player_on)? 2 :1);   //non usato
+                            System.out.println("... "+(i+1)+" m="+m+" - "+(x+inc_x)+" "+(y+inc_y));
+                            //verifica che non si superino in passi, un percorso minimo!! 
+                            if (i < percorso_minimo-1) //non DEVONO esistere due percorsi minimi!!
+                                targetPercorso( i+1, x+inc_x,  y+inc_y ,  n_entrata);
+                                mondo.get(x+" "+y).mollicaG=null;  //Non impesce alle mollice di ostacolarsi!!
+                        }  else  { 
+                            //mondo.get(key).lati[ n_entrata ] = 1;  // come se ci fosse un muro! NON VERO quando cambia dir-0!!  
+                        }
+                    }   
+                }
+            }
+        //repaint();  <- NON era il posto giusto!!
+        //siamo tornati al livello zero (fine)!!
+        //se trovato ..ripristino il percorso "mollicaG" con il minimo numero di passi!!
+        if (i == 0 && m==4)  {  //&& dir == 9  //non serve "dir" se (i==1)! 
+            if (Labirinto.trovato == 0) {
+                System.out.println("Non trovato target.  Estremo:"+lato_estremo);
+            }
+            /*
+            //  invece di richiamare targetPercorso(1,...)
+            //  .. salvato in un array!! target_path[]
+            //  .. ??registrare il percorso inverso da currrent_pos a gost_pos??
+            else {
+                int j=-2;
+                for (int o=0;o<4;o++) {
+                    if (xconta[o]==percorso_minimo)   j=o;  //target_trovato NON serve!!
+                }
+                //ripristina il percoso minimo .. se non gia' attivo (dir:Ovest)!         
+                if (j!=3) {
+                    //resetPercorsoG("0 0"); //cancellate seguendo il path a ritroso!! 
+                    Punto start=(new Punto(x,y)).muoviDir(j);  //ritorna new (x,y)
+                    // salta ponte (se nella dir giusta)
+                    if (mondo.get(start.toString()).pass_ponte && mondo.get(start.toString()).lati[j]!=2)  { 
+                        start.muoviDir(j);
+                    }
+                    mondo.get(x+" "+y).mollicaG=start.x+" "+start.y;
+                    direzione=j;   //verra cambiato? BUG!!
+                    x=start.x;
+                    y=start.y;
+                    switch (entrata) { 
+                        case 0:entrata=1; case 1:entrata=0; case 2:entrata=3; case 3:entrata=2;
+                    }
+                    
+                    targetPercorso( 1, x,  y , entrata);  //ripristino il percorso "j"
+                    
+                    System.out.println("targetPerc.> ripristino direzione:"+j+" pos1=("+x+" "+y+")");
+                }  
+            }
+            */
+            repaint();
+        }
+        //molliche.setText("<html><hr>Molliche: "+conteggio_molliche+"<br>Fiorini: 100<hr>Punti: 900");
+        //TODO...CANCELLARE la mollicaG che non e' arrivata al target!!
+        /*  quanto sotto non ha senso!! */
+        //if (!target_trovato[direzione]) mondo.get(x+" "+y).mollicaG=null;
+        //else System.out.println("tgPerc.> path trovato dir:"+direzione+" cella("+x+" "+y+")");
+        
+        return ((trovato>0)?1:0);
+    }
+    
+    public void resetPercorsoG(String key){  //cancella il percorso calcolato in precedenza (mollicaB)// key="x y"
+        for (String k : mondo.keySet()) {
+            if (mondo.get(k).mollicaG != null) {
+                mondo.get(k).mollicaG=null;
+                mondo.get(k).perc_mossa=0; //New!!
+            }
+        }
+        System.out.println(">>> Reset percorso!!"); 
     }
     //---------
+    public void resetPercorso(String key){  //cancella il percorso calcolato in precedenza (mollicaB)// key="x y"
+        for (String k : mondo.keySet()) {
+            if (mondo.get(k).mollicaB != null) {
+                mondo.get(k).mollicaB=null;
+                mondo.get(k).perc_mossa=0; //New!!
+            }
+        }
+    }
     
     public void allargaConfine(Punto cp, String effetto) {  
         int no,su,ov,es;
@@ -479,7 +753,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                 y += 1;
                 if (y*2 > vert_size) {
                     vert_size = y*2;
-                    calcoloPercorso(0,current_pos.x, current_pos.y , 9); //verificare!!
+                    //calcoloPercorso(0,current_pos.x, current_pos.y , 9); //verificare!!
                 }
                 int[] add_col ={-y,+y};  //add col.  top  and/or  bottom
                 for (int c : add_col)
@@ -571,7 +845,6 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         int[][] check_list ={{0,-1,0},{0,+1,1},{-1,0,2},{+1,0,3}};  // 4 celle da verificare (e rispettivo lato interno)
         //
         if (opz == 0){    //esamina solo "4celle" a croce intorno al punto cp. 
-            System.out.println("passa "+cp);
             // trasforma dove NON ci sono vie di entrata nasconde la cella  // verra disegnato tutto grigio!!
             Boolean esiste,  almeno_uno=false;
             for (int[] check : check_list ) {
@@ -598,7 +871,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                         }
                         esiste = (esiste && (x+y != 0) && (mondo.get(cp.toString()).lati[check[2]] == 2) ); //si accede al ponte (o passi sotto)
                         
-                        System.out.println("esiste ed e' accessibile ponte in ("+x+" "+y+"): "+esiste);
+                        //System.out.println("esiste ed e' accessibile ponte in ("+x+" "+y+"): "+esiste);
 
                         if (esiste && mondo.get(x+" "+y).tesori==0) {  //viene attivato SE NON NASCONDE UN IMPREVISTO
                             mondo.get(x+" "+y).ponte = true;
@@ -682,9 +955,8 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         int quadro_osize = (quadro.getSize().width)/(u*6);
         int quadro_vsize = (quadro.getSize().height)/(u*6);
         
-        System.out.println("Quadro pos - size"+quadro.getX()+" "+quadro.getY()+" - "+quadro.getSize().width+" "+quadro.getSize().height);
-
-        System.out.println("quadro_size current_pos.x:"+quadro_osize+" "+current_pos.x);
+        //System.out.println("Quadro pos - size"+quadro.getX()+" "+quadro.getY()+" - "+quadro.getSize().width+" "+quadro.getSize().height);
+        //System.out.println("quadro_size current_pos.x:"+quadro_osize+" "+current_pos.x);
         if (oriz_size > quadro_osize) {
             if (current_pos.x >= quadro_osize/2)       centro_r.x=158-u*2 - (quadro_osize/2-1)*u*6; // bordo !!
             if (current_pos.x <= -quadro_osize/2)      centro_r.x=158-u*2 + (quadro_osize/2-1)*u*6; 
@@ -698,7 +970,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
             mondo.get(key).newLocation();    
         }
         
-        System.out.println("Centro Riq2:"+centro_r);
+        //System.out.println("Centro Riq2:"+centro_r);
         repaint();  //non basta!!
     }
     
@@ -809,7 +1081,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
 
             mondo.get(new_cp.toString()).SetCurrent();  //non modifica current_pos
 
-            conteggio_mosse ++;
+            //conteggio_mosse ++;
             mosse.setText(" Mosse:"+conteggio_mosse+" ");
 
             //allargaConfine(new_cp,"1riga");  //Non sempre occorre questa chiamata - sposto in alto//
@@ -868,9 +1140,10 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         //indica imprevisto/tesoro trovato !!
         if (mondo.get(new_cp.toString()).tesori > 0 && mondo.get(new_cp.toString()).tesori < 10) {
             mondo.get(new_cp.toString()).tesori += 10;
-            mondo.get(new_cp.toString()).nascondi = false;            
+            mondo.get(new_cp.toString()).nascondi = false; 
+            immunita=conteggio_mosse;
             String msg ="<html>";
-            msg = msg+" -> PRESO! (nuove indicazioni per altro obbiettivo o premio o imprevisto)";                    
+            msg = msg+" -> PRESA IMMUNITA da ghosts! (vale per le prossime 20 mosse)";                    
             mosse.setText(msg);
         } 
         
@@ -881,7 +1154,16 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         }
         previous_dir=dir;
         previous_pos= (Punto) current_pos.clone();  // NON e' molto utile <punto>.clone(), dato che sono solo due gli attributi (x,y)//
-
+        /* avanza ghost */
+        if (ghost_pos.equals(new_cp)) {
+            String msg ="<html>";
+            msg = msg+" -> Committed suicide!  ..nuova vita";                    
+            mosse.setText(msg);
+            System.out.println("Committed suicide!");
+        } else gAvanza();
+        if (immunita!=0 && conteggio_mosse > immunita+20) immunita=0;
+        
+        if (!new_cp.equals(previous_pos)) conteggio_mosse++; 
         return (new_cp);  //modifica: current_pos= Muovi("Nord");
     }
 
@@ -921,9 +1203,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
             }
         };
         mosse = new javax.swing.JLabel();
-        jLabel1 = new javax.swing.JLabel();
         posizione = new javax.swing.JLabel();
-        molliche = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -933,11 +1213,11 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         quadro.setLayout(quadroLayout);
         quadroLayout.setHorizontalGroup(
             quadroLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 317, Short.MAX_VALUE)
+            .addGap(0, 404, Short.MAX_VALUE)
         );
         quadroLayout.setVerticalGroup(
             quadroLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 260, Short.MAX_VALUE)
+            .addGap(0, 294, Short.MAX_VALUE)
         );
 
         mosse.setBackground(new java.awt.Color(255, 255, 255));
@@ -948,70 +1228,36 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         mosse.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
         mosse.setOpaque(true);
 
-        jLabel1.setHorizontalAlignment(javax.swing.SwingConstants.LEFT);
-        jLabel1.setIcon(new javax.swing.ImageIcon(getClass().getResource("/immagini/cassa.jpg"))); // NOI18N
-        jLabel1.setVerticalAlignment(javax.swing.SwingConstants.BOTTOM);
-        jLabel1.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
-            public void mouseMoved(java.awt.event.MouseEvent evt) {
-                jLabel1MouseMoved(evt);
-            }
-        });
-
         posizione.setText("(0 0)");
         posizione.setVerticalAlignment(javax.swing.SwingConstants.TOP);
-
-        molliche.setText("molliche:");
-        molliche.setVerticalAlignment(javax.swing.SwingConstants.TOP);
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
-                .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(mosse)
-                    .addComponent(quadro, javax.swing.GroupLayout.DEFAULT_SIZE, 317, Short.MAX_VALUE))
-                .addGap(18, 18, 18)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 110, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(posizione)
-                    .addComponent(molliche))
-                .addContainerGap())
+                    .addComponent(posizione, javax.swing.GroupLayout.PREFERRED_SIZE, 465, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addGroup(layout.createSequentialGroup()
+                        .addGap(8, 8, 8)
+                        .addComponent(quadro, javax.swing.GroupLayout.PREFERRED_SIZE, 404, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(mosse, javax.swing.GroupLayout.PREFERRED_SIZE, 402, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
         layout.setVerticalGroup(
-            layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+            layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
-                    .addGroup(layout.createSequentialGroup()
-                        .addGap(10, 10, 10)
-                        .addComponent(quadro, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(layout.createSequentialGroup()
-                        .addGap(25, 25, 25)
-                        .addComponent(posizione, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(molliche, javax.swing.GroupLayout.PREFERRED_SIZE, 119, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addGap(18, 18, 18)
-                        .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 67, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                .addContainerGap()
+                .addComponent(quadro, javax.swing.GroupLayout.PREFERRED_SIZE, 294, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(mosse))
+                .addComponent(posizione)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(mosse, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addContainerGap(23, Short.MAX_VALUE))
         );
 
         pack();
     }// </editor-fold>                        
-
-    private void jLabel1MouseMoved(java.awt.event.MouseEvent evt) {                                   
-        // TODO add your handling code here:
-        if (currentTime != System.currentTimeMillis()/1000) {
-            System.out.println("Mouse-(move)-OVER: "+currentTime);  //usare un flag x catturare mouse-over
-            currentTime = System.currentTimeMillis()/1000;
-        }
-        /*
-        if (evt.getY() <= jLabel1.getY()+50) centro_r.y -= u*6; 
-        if (evt.getY() >= jLabel1.getY()+50) centro_r.y += u*6; 
-        Labirinto.this.repaint();
-        */
-    }                                  
 
     public void addKlistener() {
                 this.addKeyListener(new KeyAdapter() {
@@ -1020,7 +1266,6 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                 public void keyPressed(KeyEvent e) {
                     //
                     try {
-                    //calcoloPercorso(0,current_pos.x, current_pos.y , 9);  //per aggiungere i puntini blu all'inizio gioco
                     switch(e.getKeyCode()) {
 
                         case KeyEvent.VK_W:
@@ -1028,7 +1273,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                             current_pos = Muovi("Nord");
                             break;
 
-                         case KeyEvent.VK_S:
+                        case KeyEvent.VK_S:
                         case KeyEvent.VK_DOWN:
                             current_pos = Muovi("Sud");
                             break;
@@ -1046,11 +1291,16 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                          * If the game is not over, toggle the paused flag and update
                          * the logicTimer's pause flag accordingly.
                          */
-                        case KeyEvent.VK_O:  //rotate Ovest
-                            mondo.get(current_pos.toString()).ruota("LEFT");  //modifica labirinto
+                        case KeyEvent.VK_O:  //rotate Est  
+                            conteggio_mosse ++;
+                            gAvanza(); //eseguire prima di ruota() a causa dello sleep in ruota() x l'effetto rotazione
+                            // che posticipa l'effettiva rotazione della cella (da cambiare)!!
+                            mondo.get(current_pos.toString()).ruota("LEFT");  //-> presenza di uno sleep()
                             break;
-                        case KeyEvent.VK_P:  //rotate Ovest
-                            mondo.get(current_pos.toString()).ruota("RIGHT");  //modifica labirinto                            
+                        case KeyEvent.VK_P:  //rotate Ovest - presenza di uno sleep()
+                            conteggio_mosse ++;
+                            gAvanza();
+                            mondo.get(current_pos.toString()).ruota("RIGHT");  //-> presenza di uno sleep() 
                             break;
                         // Back - percorre indietro il path delle molliche
                         case KeyEvent.VK_B:  //Back (molliche) opuure usare cursore
@@ -1061,10 +1311,6 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                             break;
                            
                         case KeyEvent.VK_U:  //cerca Uscita
-                            /*
-                            Labirinto.trovato=0; resetPercorso("0 0");
-                            calcoloPercorso(0,current_pos.x, current_pos.y,9);
-                            */
                             if (!toggle_calcola) {
                                 toggle_calcola=true;
                                 Labirinto.trovato=0; resetPercorso("0 0");
@@ -1075,6 +1321,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                                 Labirinto.trovato=0; //?? >resetPercorso("0 0");
                                 for (String key : mondo.keySet()){
                                     mondo.get(key).mollicaB=null;
+                                    mondo.get(key).perc_mossa=0;
                                 }
                             }
                             repaint();
@@ -1146,8 +1393,6 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
     }
 
     // Variables declaration - do not modify                     
-    private javax.swing.JLabel jLabel1;
-    private javax.swing.JLabel molliche;
     private javax.swing.JLabel mosse;
     private javax.swing.JLabel posizione;
     private javax.swing.JPanel quadro;
@@ -1160,14 +1405,16 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         Surface surface;
         private Boolean current = false;
         protected String mollica = null;  // indica il passaggio sul Path (percorso contiguo di molliche)
-        protected String mollicaB = null;  // indica il passaggio sul Path (percorso contiguo di molliche)
+        protected String mollicaB = null;  // indica il passaggio raggiungibile
+        protected String mollicaG = null;  // indica il passaggio Ghost
         protected int scoperta = 0;  // registra il numero di mossa che ha scoperto la cella!!
         protected Boolean nascondi=false;
         protected int tesori = 0; //valore da 0 a 4: tipo di tesoro posto sulla cella! // preferenza alle celle nascoste(??)
         protected Boolean ponte = false; // viene disegnato come ponte 
         protected Boolean pass_ponte = false; // passaggio ponte e' stato acquistato!! (modif. calcoloPercorso) 
         protected Boolean ghost=false;
-        protected Boolean attiva=true;  //se disattiva, il nulla avanza!
+        protected int player=0;      //Boolena (player= 1 oppure 0)  
+        protected int perc_mossa=-1;  // <num.mossa> ultimo calcoloPercorso() 
         protected String rotate=null;  //(left,right,null)
         //final int u = 10;
         
@@ -1201,13 +1448,11 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
             if ((stato && mollica != null) && (pos.toString().equals(mondo.get(current_pos.toString()).mollica)) ) {   //torna indietro sui suoi passi col cursore
                 mondo.get(current_pos.toString()).mollica = null;
                 Labirinto.conteggio_molliche --;
-                //molliche.setText("Molliche: "+conteggio_molliche);
-                molliche.setText("<html><hr>Molliche: "+conteggio_molliche+"<br>Fiorini: 100<hr>Punti: 900");
+                //molliche.setText("<html><hr>Molliche: "+conteggio_molliche+"<br>Fiorini: 100<hr>Punti: 900");
             }
             if (stato && mollica == null) {
                 Labirinto.conteggio_molliche ++;
-                //molliche.setText("Molliche: "+conteggio_molliche);
-                molliche.setText("<html><hr>Molliche: "+conteggio_molliche+"<br>Fiorini: 100<hr>Punti: 900");
+                //molliche.setText("<html><hr>Molliche: "+conteggio_molliche+"<br>Fiorini: 100<hr>Punti: 900");
                 this.scoperta = conteggio_mosse;
                 this.mollica = current_pos.toString();  //puntatore alla cella/mollica precedente (x creare il path)
                 //se la cella e' ad un incrocio, NON modifica il puntatore! Ignorando cosi' il circolo vizioso!!   
@@ -1216,8 +1461,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
             if (!stato && stepBack) {   //non va bene se incrocio:  rimane appeso il circolo vizioso!
                 mollica = null;
                 Labirinto.conteggio_molliche --;
-                //molliche.setText("Molliche: "+conteggio_molliche);
-                molliche.setText("<html><hr>Molliche: "+conteggio_molliche+"<br>Fiorini: 100<hr>Punti: 900");
+                //molliche.setText("<html><hr>Molliche: "+conteggio_molliche+"<br>Fiorini: 100<hr>Punti: 900");
             }
             //surface.repaint(); //non e' necessario?
         }
@@ -1343,35 +1587,43 @@ class Surface extends JPanel implements ActionListener,Runnable {
         Graphics2D g2d = (Graphics2D) g;
 
         //ruota intorno al centro della cella
-        //Come evitare che la cella venga coperta da quelle adiacenti(durante la rotazione)??
         if (rif_cella.rotate != null) {
-          //setBounds(this.getX(), this.getY(), u*8, u*8);
-            g2d.setPaint(Color.gray);  //g2d.setPaint(Color.yellow);
+            //setBounds(this.getX(), this.getY(), u*8, u*8);   //..necessario??
+            // <editor-fold defaultstate="collapsed" desc="* Esempio di trasparenza *"> 
+            /* Usare la trasparenza per evitare che la cella venga coperta da quelle adiacenti(durante la rotazione):
+                float alpha = i * 0.1f;
+                AlphaComposite alcom = AlphaComposite.getInstance(
+                        AlphaComposite.SRC_OVER, alpha);
+                g2d.setComposite(alcom);
+                g2d.fillRect(50 * i, 20, 40, 40);
+            */ //</editor-fold>
+            g2d.setPaint(Color.gray);  
             g2d.fillRect(0, 0, u*6, u*6);
-          //g2d.translate(0,u);             //serve per "y" ?? //forse a causa del bug-saltino iniziale!?
             g2d.rotate((rif_cella.rotate.equals("LEFT") ? -Math.PI/4 : Math.PI/4) ,u*3, u*3); //dovrebbe fare translate(u*4)+rotate(45°) assieme.
-          //g2d.translate(0, 0);
-            
-            threadMessage("PASSA DI QUI! - rotate");
+            //threadMessage("PASSA DI QUI! - rotate");
         } 
         
         
         //Color wallcolor = ((rif_cella.attiva) ? Color.gray : Color.lightGray);  
-        Color wallcolor = ((rif_cella.attiva) ? Color.gray : Color.LIGHT_GRAY);  
-        //sostituire con: Color[] bgcolor 
+        Color wallcolor = Color.gray;  
+        //sostituire con: Color[] bgcolor (?)
+        //g2d.setPaint(Color.lightGray); 
         
-        g2d.setPaint(Color.lightGray); 
-        if (rif_cella.nascondi) { 
-            g2d.setPaint(wallcolor);
-        }
-        
-        if (rif_cella.pos.equals("0 0")) g2d.setPaint(((rif_cella.attiva) ? Color.yellow : Color.white));
-        
-        if (rif_cella.attiva) g2d.fillRect(0, 0, u*6, u*6); //background  
-        else if (rif_cella.nascondi){ 
-            g2d.setPaint(Color.lightGray);
+        if (rif_cella.pos.equals("0 0")) {
+            g2d.setPaint(Color.yellow);
             g2d.fillRect(0, 0, u*6, u*6); //background 
         }
+        
+        if (rif_cella.nascondi){ 
+            g2d.setPaint(wallcolor);
+            g2d.fillRect(0, 0, u*6, u*6); //background 
+        }
+        
+        if (rif_cella.mollicaG!=null && rif_cella.mollicaG!="END"){ 
+            g2d.setPaint(Color.WHITE);
+            g2d.fillRect(0, 0, u*6, u*6); //background 
+        }
+
         g2d.setPaint(wallcolor);
 
 
@@ -1389,43 +1641,36 @@ class Surface extends JPanel implements ActionListener,Runnable {
         
         //disegna I di Imprevisto (ex Tesoro)
         if (rif_cella.tesori != 0) {
-            if (rif_cella.tesori >= 10) g2d.setPaint(((rif_cella.attiva) ? Color.orange : Color.gray));
-            else    g2d.setPaint(((rif_cella.attiva) ? Color.black : Color.gray)); 
+            if (rif_cella.tesori >= 10) g2d.setPaint(Color.orange);
+            else    g2d.setPaint(Color.black); 
             g2d.fillRect((int)(u*2.5), u+1, u, u);
             g2d.fillRect((int)(u*2.5), (int)(u*2.5), u, u*2); 
             g2d.drawLine(u*2,(int)(u*4.5), u*4, (int)(u*4.5));
-    }
-
-// From:  https://docs.oracle.com/javase/tutorial/2d/images/index.html   (approfondire)
-// <editor-fold defaultstate="collapsed" desc="* Create an ARGB BufferedImage *">                          
-/* Create an ARGB BufferedImage *
-BufferedImage img = ImageIO.read(imageSrc);
-int w = img.getWidth(null);
-int h = img.getHeight(null);
-BufferedImage bi = new
-    BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-Graphics g = bi.getGraphics();
-g.drawImage(img, 0, 0, null);
-
-/*
- * Create a rescale filter op that makes the image
- * 50% opaque.
- *
-float[] scales = { 1f, 1f, 1f, 0.5f };
-float[] offsets = new float[4];
-RescaleOp rop = new RescaleOp(scales, offsets, null);
-
-/* Draw the image, applying the filter *
-g2d.drawImage(bi, rop, 0, 0);
-
-*/ // </editor-fold>
-        
-        if (rif_cella.mollicaB != null){   // && rif_cella.rotate == null) { 
+        }
+        if (rif_cella.mollicaB != null && rif_cella.player==1){              //NECESSITA resetPercorso();
+        //if (rif_cella.perc_mossa == conteggio_mosse){   //NON NECESSITA resetPercorso(); //BUG presente!!
             g2d.setPaint(Color.blue);
             g2d.drawLine(0, u*2, u*2, 0); g2d.drawLine(0, u*4, u*4, 0); g2d.drawLine(0, u*6, u*6, 0);
-            g2d.drawLine(u*2, u*6, u*6, u*2); g2d.drawLine(u*4, u*6, u*6, u*4);
+            g2d.drawLine(u*2, u*6, u*6, u*2); g2d.drawLine(u*4, u*6, u*6, u*4);                
             //g2d.setPaint(Color.lightGray);
         };         
+        if (rif_cella.mollicaB != null && rif_cella.player==2){
+            g2d.setPaint(Color.red);
+            g2d.drawLine(0, u*2, u*2, 0); g2d.drawLine(0, u*4, u*4, 0); g2d.drawLine(0, u*6, u*6, 0);
+            g2d.drawLine(u*2, u*6, u*6, u*2); g2d.drawLine(u*4, u*6, u*6, u*4);
+        }        
+        
+        //alone immunita       
+        int rx=Math.abs(current_pos.x-rif_cella.pos.x), ry=Math.abs(current_pos.y-rif_cella.pos.y);
+        if (immunita>0 && (rx<2 && ry<2) && rif_cella.mollicaG!=null ){ 
+            //System.out.println("immunita:"+Math.abs(current_pos.x-rif_cella.pos.x));
+            g2d.setPaint(Color.red);  //yellow
+            g2d.drawLine(0, u*4, u*2, u*6); g2d.drawLine(0, u*2, u*4, u*6); g2d.drawLine(0, 0, u*6, u*6);
+            g2d.drawLine(u*2, 0, u*6, u*4); g2d.drawLine(u*4, 0, u*6, u*2); 
+        }
+        
+        
+
         g2d.setPaint(wallcolor);
         g2d.fillRect(0, 0, u, u);  g2d.fillRect(0, u*5, u, u);  g2d.fillRect(u*5, u*5, u, u);  g2d.fillRect(u*5, 0, u, u);
         if (rif_cella.lati[0]!=2) g2d.fillRect(0, 0, u*6, u);     // muro a Nord   
@@ -1443,11 +1688,11 @@ g2d.drawImage(bi, rop, 0, 0);
         
         if ( rif_cella.pass_ponte || (rif_cella.ponte)) { //  BUG!! .. && Labirinto.toggle_nascondi)) { 
             if (rif_cella.lati[0] == 2){
-                g2d.setPaint(((rif_cella.attiva) ? Color.orange : Color.lightGray));  g2d.fillRect(0,u,u*6,u*4);
+                g2d.setPaint(Color.orange);  g2d.fillRect(0,u,u*6,u*4);
                 g2d.setPaint(Color.gray);   g2d.drawLine(0,u,u*6,u);
                 g2d.setPaint(Color.gray);   g2d.drawLine(0,u*5,u*6,u*5);
             } else {
-                g2d.setPaint(((rif_cella.attiva) ? Color.orange : Color.lightGray));  g2d.fillRect(u,0,u*4,u*6);
+                g2d.setPaint(Color.orange);  g2d.fillRect(u,0,u*4,u*6);
                 g2d.setPaint(Color.gray);   g2d.drawLine(u,0,u,u*6);
                 g2d.setPaint(Color.gray);   g2d.drawLine(u*5,0,u*5,u*6);
             }
@@ -1457,6 +1702,10 @@ g2d.drawImage(bi, rop, 0, 0);
             g2d.setPaint(Color.cyan);
             g2d.fillRect(0,0,u*6,u);
         }
+        if (rif_cella.pos.equals(Labirinto.ghost_pos)) { 
+            g2d.setPaint(Color.black);
+            g2d.fillRect(u*(2+xo),u*(2+yo),u*2,u*2);
+        };    
         
         
         if (rif_cella.CurrentVal() && !rif_cella.pass_ponte) { 
@@ -1537,14 +1786,38 @@ class Punto extends Point {
         return (this.x == x1 && this.y == y1);
     }   
 
-    public String vediLato(String dir) {
+    
+    public Punto muoviDir(int dir) {
+        String direzione = Integer.toString(dir);
+        return muoviDir(direzione);
+    }    
+    public Punto muoviDir(String dir) {
         int dx=0,dy=0;
         switch (dir){
-            case "Nord": dx=0;dy=-1; break;
-            case "Sud":  dx=0;dy=1; break;
-            case "Ovest":  dx=-1;dy=0; break;
-            case "Est":  dx=1;dy=0; break;
+            case "0": case "Nord": dx=0;dy=-1; break;
+            case "1": case "Sud":  dx=0;dy=1; break;
+            case "2": case "Ovest":  dx=-1;dy=0; break;
+            case "3": case "Est":  dx=1;dy=0; break;
         }
-        return (this.x+dx)+" "+(this.y+dy);
+        x += dx;
+        y += dy;
+        return this;
     }
+    
+    // ritorna il punto senza modificare x e y)
+    public Punto vediDir(int dir) {
+        String direzione = Integer.toString(dir);
+        return muoviDir(direzione);
+    }    
+    public Punto vediDir(String dir) {
+        int dx=0,dy=0;
+        switch (dir){
+            case "0": case "Nord": dx=0;dy=-1; break;
+            case "1": case "Sud":  dx=0;dy=1; break;
+            case "2": case "Ovest":  dx=-1;dy=0; break;
+            case "3": case "Est":  dx=1;dy=0; break;
+        }
+        return new Punto((this.x+dx),(this.y+dy));
+    }
+    
 }
