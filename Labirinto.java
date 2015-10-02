@@ -1774,9 +1774,13 @@ class Punto extends Point {
     @Override
     public String toString(){
         return this.x+" "+this.y;
-    }   
+    }
+    
     public Boolean equals(Punto p){
         return (this.x == p.x && this.y == p.y);
+    }   
+    public Boolean equals(int x1,int y1){
+        return (this.x == x1 && this.y == y1);
     }   
     public Boolean equals(String s){  //s="x y"
         if (s == null) s = "0 0";
@@ -1804,7 +1808,7 @@ class Punto extends Point {
         return this;
     }
     
-    // ritorna il punto senza modificare x e y)
+    // ritorna un punto (senza modificare this.x e this.y)
     public Punto vediDir(int dir) {
         String direzione = Integer.toString(dir);
         return muoviDir(direzione);
