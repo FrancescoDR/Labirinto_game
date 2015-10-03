@@ -156,7 +156,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
     private int ghost_cont=0;
     static private int immunita=0;  //flag immunita da ghost (per 2 mosse/rotazioni): contiene il conteggio_mosse
     private int[] killed_life = {0,0,0}; //registra la mossa in cui e' "killed"!  (attende 4 mosse prima di cacciare)
-    //static javax.swing.JPanel G_Panel;
+    static private Boolean vista_mappa=true;
     
 
     /**
@@ -318,10 +318,38 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
     }
     
     
-    static public void DoPaint(Graphics g){    
+    static public void DoPaint(Graphics g){  
         Graphics2D g2d = (Graphics2D) g; 
-        copiaBordo(g2d,"LEFT");
-        copiaBordo(g2d,"RIGHT");
+        if (vista_mappa){
+            copiaBordo(g2d,"LEFT");
+            copiaBordo(g2d,"RIGHT");
+        } 
+        else {
+            int[] assex = {40,360,260,200}; //se simmetrico 140->200
+            int[] assey = {280,280,200,200};
+            g2d.drawPolygon(assex,assey,4);
+            
+            int ybase=280,xleft=40,xright=360,   dx=40;
+            int y1,x1= xleft+dx;
+            y1 = (int)( ybase - ((double)80/160)*(x1-xleft)); 
+            int y2,x2= xright-dx;
+            y2= (int)(ybase - ((double)80/100)*(xright-x2));
+            //         
+            int xwidth=xright-xleft;
+            int r= (int)Math.sqrt(Math.pow((xwidth/2),2)*2);
+            int xdiff=(2*r)-xwidth;
+            
+            System.out.println(">>> "+r+" "+xdiff);
+            
+            g2d.drawOval(xleft-xdiff, ybase-(xwidth/4), xwidth+2*xdiff, xwidth/2);
+            g2d.drawLine(40,290,360,290);
+            //formula dell'ellisse  (x^2)/(a^2) + (y^2)/(b^2) = 1
+            // dove a e b  sono i semiassi orizzontale e verticale
+            //da cui  x=sqrt( (1-(y^2)/(b^2))*(a^2) )
+            
+            //il punto di fuga si sposta sull'ellisse
+            // 
+        }
         //mappa();
         //if (immunita!=0) immunita(g2d);
     }
@@ -1314,6 +1342,11 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                         case KeyEvent.VK_B:  //Back (molliche) opuure usare cursore
                             stepIndietro();
                             break;
+                        case KeyEvent.VK_V:  //vista mappa/frontale
+                            if (!vista_mappa) vista_mappa=true;
+                            else  vista_mappa=false;
+                            repaint();
+                            break;
                         case KeyEvent.VK_Z:  //Zoom
                             Zoom();
                             break;
@@ -1590,7 +1623,8 @@ class Surface extends JPanel implements ActionListener,Runnable {
     
     @Override
     public void paintComponent(Graphics g) {
-
+        if (!vista_mappa) return;
+        
         super.paintComponent(g); //se lo metto cancella tutto il bound!
         Graphics2D g2d = (Graphics2D) g;
 
