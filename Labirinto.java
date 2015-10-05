@@ -317,31 +317,139 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         return new Punto(gx,gy);
     }
     
-    
+    //Antialiasing: 
+    //http://stackoverflow.com/questions/7701097/java-graphics-fillpolygon-how-to-also-render-right-and-bottom-edges
     static public void DoPaint(Graphics g){  
         Graphics2D g2d = (Graphics2D) g; 
         if (vista_mappa){
             copiaBordo(g2d,"LEFT");
             copiaBordo(g2d,"RIGHT");
+           //mappa();
         } 
         else {
-            int[] assex = {40,360,260,200}; //se simmetrico 140->200
-            int[] assey = {280,280,200,200};
-            g2d.drawPolygon(assex,assey,4);
+            int[] assex = {40,360,260,140}; //se simmetrico 140->200
+            int[] assey = {280,280,202,202};
             
-            int ybase=280,xleft=40,xright=360,   dx=40;
-            int y1,x1= xleft+dx;
-            y1 = (int)( ybase - ((double)80/160)*(x1-xleft)); 
-            int y2,x2= xright-dx;
-            y2= (int)(ybase - ((double)80/100)*(xright-x2));
-            //         
+            int ytop=202,ybase=280,xleft=40,xright=360;  //ybase,xright-xleft:(base del triangolo) ytop:(vertice del triangolo)
+            int y1,x1,y2,x2, dx=100; //dx: rapporto y/x
+            //
+            int diffx=80;  
+            x1= xleft+diffx;  x2= xright-diffx;
+            y1 = (int)( ybase - ((double)(ybase-ytop)/dx)*(x1-xleft)); 
+            //y2= (int)(ybase - ((double)(ybase-ytop)/dx)*(xright-x2));
+            
+            int fuga=4;
+            //cella vicina
+            assex[0]=xleft; assey[0]=ybase;
+            assex[1]=xright; assey[1]=ybase;
+            assex[2]=x2; assey[2]=y1;
+            assex[3]=x1; assey[3]=y1;  //y1=y2
+            g2d.setPaint(Color.gray);
+            g2d.fillPolygon(assex,assey,4);
+            //shift orizzontale
+            {
+            //cella a destra
+            dx= 100;//cambia dx ..di quanto?
+            int[] shift_assex={0,0,0,0};
+            int topx=assex[1]-assex[0]; 
+            fuga=4;
+            shift_assex[0]=assex[0]+topx+fuga;  assey[0]=assey[0]; //shift left
+            shift_assex[1]=assex[1]+topx+fuga;  assey[1]=assey[1]; //shift left  
+            topx=assex[2]-assex[3]; //
+            shift_assex[2]=assex[2]+topx+fuga;  
+            shift_assex[3]=assex[3]+topx+fuga;
+            g2d.setPaint(Color.gray);
+            g2d.drawPolygon(shift_assex,assey,4);
+            //cella a sinistra
+            dx= 100;//cambia dx ..di quanto?
+            topx=(assex[1]-assex[0]);  
+            shift_assex[0]=assex[0]-topx-fuga;  assey[0]=assey[0]; //shift right
+            shift_assex[1]=assex[1]-topx-fuga;  assey[1]=assey[1]; //shift right 
+            topx=(assex[2]-assex[3]); //
+            shift_assex[2]=assex[2]-topx-fuga;  
+            shift_assex[3]=assex[3]-topx-fuga;
+            g2d.setPaint(Color.gray);
+            g2d.drawPolygon(shift_assex,assey,4);
+            }
+            
+            //cella media distanza
+            assex[0]=assex[2]; assey[0]=assey[2]-2; //shift up
+            assex[1]=assex[3]; assey[1]=assey[2]-2; //shift up            
+            x1= xleft+(diffx+diffx/2);  x2= xright-(diffx+diffx/2);
+            y1 = (int)( ybase - ((double)(ybase-ytop)/dx)*(x1-xleft)); 
+            assex[2]=x1; assey[2]=y1;
+            assex[3]=x2; assey[3]=y1;
+            g2d.setPaint(Color.lightGray);
+            g2d.fillPolygon(assex,assey,4);
+            //shift orizzontale
+            {
+            //cella a destra
+            dx= 100;//cambia dx ..di quanto?
+            int[] shift_assex={0,0,0,0};
+            int topx=assex[1]-assex[0];  
+            fuga=3;
+            shift_assex[0]=assex[0]+topx+fuga;  assey[0]=assey[0]; //shift left
+            shift_assex[1]=assex[1]+topx+fuga;  assey[1]=assey[1]; //shift left  
+            topx=assex[2]-assex[3]; //
+            shift_assex[2]=assex[2]+topx+fuga;  
+            shift_assex[3]=assex[3]+topx+fuga;
+            g2d.setPaint(Color.gray);
+            g2d.drawPolygon(shift_assex,assey,4);
+            //cella a sinistra
+            dx= 100;//cambia dx ..di quanto?
+            topx=(assex[1]-assex[0]);
+            shift_assex[0]=assex[0]-topx-fuga;  assey[0]=assey[0]; //shift right
+            shift_assex[1]=assex[1]-topx-fuga;  assey[1]=assey[1]; //shift right 
+            topx=(assex[2]-assex[3]); //
+            shift_assex[2]=assex[2]-topx-fuga;  
+            shift_assex[3]=assex[3]-topx-fuga;
+            g2d.setPaint(Color.gray);
+            g2d.drawPolygon(shift_assex,assey,4);
+            }
+            
+            //cella lontana
+            assex[0]=assex[2]+2; assey[0]=assey[2]-2; //shift up
+            assex[1]=assex[3]-2; assey[1]=assey[2]-2; //shift up            
+            x1= xleft+(diffx+diffx/2+diffx/4);  x2= xright-(diffx+diffx/2+diffx/4);
+            y1 = (int)( ybase - ((double)(ybase-ytop)/dx)*(x1-xleft)); 
+            assex[2]=x2; assey[2]=y1;
+            assex[3]=x1; assey[3]=y1;
+            g2d.setPaint(Color.gray);
+            g2d.drawPolygon(assex,assey,4);            
+            //shift orizzontale
+            {
+            //cella a destra
+            dx= 100;//cambia dx ..di quanto?
+            int[] shift_assex={0,0,0,0};
+            int topx=assex[1]-assex[0];  
+            fuga=2;
+            shift_assex[0]=assex[0]+topx+fuga;  assey[0]=assey[0]; //shift left
+            shift_assex[1]=assex[1]+topx+fuga;  assey[1]=assey[1]; //shift left  
+            topx=assex[2]-assex[3]; //
+            shift_assex[2]=assex[2]+topx+fuga;  
+            shift_assex[3]=assex[3]+topx+fuga;
+            g2d.setPaint(Color.gray);
+            g2d.drawPolygon(shift_assex,assey,4);
+            //cella a sinistra
+            dx= 100;//cambia dx ..di quanto?
+            topx=(assex[1]-assex[0]);
+            shift_assex[0]=assex[0]-topx-fuga;  assey[0]=assey[0]; //shift right
+            shift_assex[1]=assex[1]-topx-fuga;  assey[1]=assey[1]; //shift right 
+            topx=(assex[2]-assex[3]); //
+            shift_assex[2]=assex[2]-topx-fuga;  
+            shift_assex[3]=assex[3]-topx-fuga;
+            g2d.setPaint(Color.gray);
+            g2d.drawPolygon(shift_assex,assey,4);
+            }
+            
+            //g2d.setPaint(Color.red);
+            //g2d.drawLine(x1,y1-2,x2,y1-2);
+            /*
             int xwidth=xright-xleft;
             int r= (int)Math.sqrt(Math.pow((xwidth/2),2)*2);
             int xdiff=(2*r)-xwidth;
-            
-            System.out.println(">>> "+r+" "+xdiff);
-            
-            g2d.drawOval(xleft-xdiff, ybase-(xwidth/4), xwidth+2*xdiff, xwidth/2);
+            g2d.drawOval(xleft-xdiff, ybase-(xwidth/4) -40, xwidth+2*xdiff, xwidth/2  +80);
+            */        
             g2d.drawLine(40,290,360,290);
             //formula dell'ellisse  (x^2)/(a^2) + (y^2)/(b^2) = 1
             // dove a e b  sono i semiassi orizzontale e verticale
@@ -350,11 +458,10 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
             //il punto di fuga si sposta sull'ellisse
             // 
         }
-        //mappa();
         //if (immunita!=0) immunita(g2d);
     }
     static private void mappa(){
-        //TODO .. disegna una mappa mignon (u=0.2px)
+        //TODO .. disegna una mappa mignon (lato_cella=2px) per avere sempre posizione di cursore e ghosts
     }
     static private void immunita(Graphics2D g2d){
         //TODO .. disegna un cerchio rosso trasparente attorno a current_pos (diametro 3-5 celle)  
@@ -1141,7 +1248,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                         System.out.println("passo_go"+current_pos);  //attente che wait sia terminato??
                         //Surface.threadMessage("passo1"+current_pos);
                         try { 
-                        Thread.sleep(200); //NON HA SENSO uno sleep in AWT-ED queue!!
+                        Thread.sleep(100); //NON HA SENSO uno sleep in AWT-ED queue!!
                         } catch (InterruptedException ev) {  System.err.println("Caught Exception: " + ev.getMessage());   }    
                         mondo.get(current_pos.toString()).surface.xo=0;
                         mondo.get(current_pos.toString()).surface.yo=0;
@@ -1230,7 +1337,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
      * regenerated by the Form Editor.
      */
     @SuppressWarnings("unchecked")
-    // <editor-fold defaultstate="collapsed" desc="Generated Code">                          
+    // <editor-fold defaultstate="collapsed" desc="Generated Code">                                                    
     private void initComponents() {
 
         quadro = new javax.swing.JPanel() {
@@ -1293,7 +1400,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         );
 
         pack();
-    }// </editor-fold>                        
+    }// </editor-fold>                                                
 
     public void addKlistener() {
                 this.addKeyListener(new KeyAdapter() {
@@ -1433,11 +1540,11 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
         });
     }
 
-    // Variables declaration - do not modify                     
+    // Variables declaration - do not modify                                          
     private javax.swing.JLabel mosse;
     private javax.swing.JLabel posizione;
     private javax.swing.JPanel quadro;
-    // End of variables declaration                   
+    // End of variables declaration                                      
 
     //Inner class Cella (posso cosi' usare "add(<jLabel-surface>)" che agisce sul jFrame-Labirinto) //
     class Cella {
@@ -1535,7 +1642,7 @@ public class Labirinto extends javax.swing.JFrame {   // implements ActionListen
                         rotate=ruota_dir;  //step1 - verificare se l'attesa e' 200 millisec!!
                         repaint();// HA effetto!!  Sostituire con: invokeAndWait(surface)???
                         //SwingUtilities.invokeAndWait(surface);  //il repaint() e' implicito!!
-                        Thread.sleep(100);
+                        Thread.sleep(200);
                         //SwingUtilities.invokeAndWait(surface);
                         //cambia la posizione dei muri a seguito di ruota(left/right)
                         int temp=lati[0];
@@ -1627,6 +1734,10 @@ class Surface extends JPanel implements ActionListener,Runnable {
         
         super.paintComponent(g); //se lo metto cancella tutto il bound!
         Graphics2D g2d = (Graphics2D) g;
+        //Color wallcolor = ((rif_cella.attiva) ? Color.gray : Color.lightGray);  
+        Color wallcolor = Color.gray;  
+        //sostituire con: Color[] bgcolor (?)
+        //g2d.setPaint(Color.lightGray); 
 
         //ruota intorno al centro della cella
         if (rif_cella.rotate != null) {
@@ -1639,17 +1750,14 @@ class Surface extends JPanel implements ActionListener,Runnable {
                 g2d.setComposite(alcom);
                 g2d.fillRect(50 * i, 20, 40, 40);
             */ //</editor-fold>
-            g2d.setPaint(Color.gray);  
-            g2d.fillRect(0, 0, u*6, u*6);
+            g2d.setPaint(wallcolor);
+            //g2d.fillRect(-10, -10, u*6+20, u*6+20); //allargo al dimensione del background 
+            g2d.fillRect(0, 0, u*6, u*6); 
             g2d.rotate((rif_cella.rotate.equals("LEFT") ? -Math.PI/4 : Math.PI/4) ,u*3, u*3); //dovrebbe fare translate(u*4)+rotate(45°) assieme.
             //threadMessage("PASSA DI QUI! - rotate");
         } 
         
         
-        //Color wallcolor = ((rif_cella.attiva) ? Color.gray : Color.lightGray);  
-        Color wallcolor = Color.gray;  
-        //sostituire con: Color[] bgcolor (?)
-        //g2d.setPaint(Color.lightGray); 
         
         if (rif_cella.pos.equals("0 0")) {
             g2d.setPaint(Color.yellow);
@@ -1667,19 +1775,6 @@ class Surface extends JPanel implements ActionListener,Runnable {
         }
 
         g2d.setPaint(wallcolor);
-
-
-        /*
-        //if ((rif_cella.scoperta != 0) && rif_cella.mollicaB == null ) { //non considere l'uso del cursore indietro!! 
-        if (!rif_cella.CurrentVal() && rif_cella.mollica != null  && rif_cella.mollicaB == null) {  //percorso interrotto da una rotazione cella? //BUG?
-            System.out.println("white "+rif_cella.pos+" "+rif_cella.mollica+" "+rif_cella.mollicaB);
-            //operazione messa in paintComponent() per non dover aggiungere un ciclo-mondo! (o mettere nel ciclo reset?)
-            //rif_cella.mollica = null;  Labirinto.conteggio_molliche --; //rimuovere flag in modo permanente??
-            g2d.setPaint(Color.white);
-        }
-        */
-        //if (rif_cella.pos.equals(Labirinto.target)) g2d.setPaint(Color.yellow);
-        //g2d.fillRect(0, 0, u*6, u*6);   //background  
         
         //disegna I di Imprevisto (ex Tesoro)
         if (rif_cella.tesori != 0) {
